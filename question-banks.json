@@ -1,16 +1,5 @@
 [
   {
-    "id": "ERP_Planner_202509_V06",
-    "title": "ERP 規劃師參考題型 2025.09 V06",
-    "description": "依據 ERP 規劃師試題指南 2025.09 V06 整理之官方參考題型題庫。",
-    "file": "questions/ERP_Planner_202509_V06.json",
-    "category": "ERP 規劃師",
-    "version": "1.0",
-    "questionCount": 441,
-    "createdDate": "2026-06-06",
-    "enabled": true
-  },
-  {
     "id": "sample",
     "title": "範例題庫",
     "description": "示範墨忻刷題網支援的題型與格式",
