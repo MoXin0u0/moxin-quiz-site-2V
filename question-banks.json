@@ -1,0 +1,13 @@
+[
+  {
+    "id": "sample",
+    "title": "範例題庫",
+    "description": "示範墨忻刷題網支援的題型與格式",
+    "file": "questions/sample.json",
+    "category": "範例",
+    "version": "1.0",
+    "questionCount": 5,
+    "createdDate": "2026-06-06",
+    "enabled": true
+  }
+]

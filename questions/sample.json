@@ -1,0 +1,93 @@
+{
+  "bankId": "sample",
+  "title": "範例題庫",
+  "description": "示範墨忻刷題網支援的題型與格式",
+  "version": "1.0",
+  "createdDate": "2026-06-06",
+  "category": "範例",
+  "questions": [
+    {
+      "id": "SAMPLE001",
+      "type": "single_choice",
+      "question": "下列哪一項是墨忻刷題網支援的題型？",
+      "options": {
+        "A": "單選題",
+        "B": "只有申論題",
+        "C": "只有填空題",
+        "D": "只有圖片題"
+      },
+      "answer": "A",
+      "explanation": "本題答案為 A。墨忻刷題網支援單選題、複選題、是非題與填空題。B、C、D 都把系統能力描述得過於狹窄，因此不正確。",
+      "tags": ["範例", "題型"],
+      "difficulty": "easy",
+      "chapter": "系統範例"
+    },
+    {
+      "id": "SAMPLE002",
+      "type": "multiple_choice",
+      "question": "下列哪些功能屬於墨忻刷題網的核心功能？",
+      "options": {
+        "A": "錯題本複習",
+        "B": "多題庫管理",
+        "C": "登入會員系統",
+        "D": "模擬考練習"
+      },
+      "answer": ["A", "B", "D"],
+      "explanation": "本題答案為 A、B、D。墨忻刷題網定位為純前端題庫刷題平台，核心包含錯題本、多題庫管理與模擬考。C 不正確，因為本系統不開發登入或會員系統。",
+      "tags": ["範例", "複選題"],
+      "difficulty": "medium",
+      "chapter": "系統範例"
+    },
+    {
+      "id": "SAMPLE003",
+      "type": "true_false",
+      "question": "墨忻刷題網可以直接部署於 GitHub Pages，不需要後端伺服器。",
+      "answer": true,
+      "explanation": "本題答案為 true。墨忻刷題網使用 HTML、CSS、JavaScript、JSON 與 localStorage 建置，可直接部署在 GitHub Pages，不需要後端伺服器。",
+      "tags": ["範例", "GitHub Pages"],
+      "difficulty": "easy",
+      "chapter": "部署方式"
+    },
+    {
+      "id": "SAMPLE004",
+      "type": "fill_blank",
+      "question": "墨忻刷題網的本機資料主要儲存在瀏覽器的 ____。",
+      "answer": ["localStorage", "LocalStorage", "LOCALSTORAGE"],
+      "caseSensitive": false,
+      "explanation": "本題答案為 localStorage。墨忻刷題網沒有登入與後端資料庫，因此錯題本、收藏、進度與匯入題庫會儲存在瀏覽器 localStorage。",
+      "tags": ["範例", "localStorage"],
+      "difficulty": "easy",
+      "chapter": "資料儲存"
+    },
+    {
+      "id": "SAMPLE_IMG_001",
+      "type": "single_choice",
+      "question": "請根據下圖判斷，下列哪一項說明正確？",
+      "images": [
+        {
+          "src": "assets/images/sample_diagram.svg",
+          "alt": "範例流程圖",
+          "caption": "圖1：題目用範例流程圖"
+        }
+      ],
+      "options": {
+        "A": "流程由開始節點進入判斷節點",
+        "B": "流程沒有任何判斷節點",
+        "C": "流程只包含結束節點",
+        "D": "圖片與題目無關"
+      },
+      "answer": "A",
+      "explanation": "本題答案為 A。圖中流程由開始節點進入判斷節點，判斷後才分流到後續步驟。B 錯在忽略判斷節點；C 錯在流程不只包含結束節點；D 錯在圖片正是本題判斷依據。",
+      "explanationImages": [
+        {
+          "src": "assets/images/sample_diagram.svg",
+          "alt": "範例流程圖詳解",
+          "caption": "解析圖：流程由開始節點進入判斷節點"
+        }
+      ],
+      "tags": ["範例", "圖片題"],
+      "difficulty": "easy",
+      "chapter": "圖片題範例"
+    }
+  ]
+}
