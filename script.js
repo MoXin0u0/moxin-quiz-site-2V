@@ -1662,9 +1662,16 @@ function renderExamActive() {
         <button type="button" id="openExamNavButton" class="secondary">題號導覽</button>
       </div>
     </div>
-    <div class="panel exam-nav-panel">
-      <div class="drawer-header"><strong>題號導覽</strong><span class="muted">已作答題目會標示為已答</span></div>
-      <div id="examQuestionNav" class="exam-question-nav"></div>
+    <div class="panel exam-nav-panel exam-nav-summary-panel">
+      <div class="drawer-header">
+        <strong>題號導覽</strong>
+        <span id="examNavSummaryText" class="muted">尚未作答</span>
+      </div>
+      <p class="muted">題數較多時不直接攤開全部題號，避免遮住題目。需要跳題時請開啟題號面板。</p>
+      <div class="toolbar">
+        <button type="button" id="openExamNavButtonInline" class="secondary">開啟題號面板</button>
+        <button type="button" id="jumpFirstUnansweredButton" class="secondary">跳到第一題未作答</button>
+      </div>
     </div>
     <form id="examForm"></form>
     <div class="panel exam-submit-panel"><button type="button" id="submitExamButton">交卷並批改</button></div>
@@ -1687,6 +1694,8 @@ function renderExamActive() {
   });
   $('submitExamButton').addEventListener('click', () => submitExam(false));
   $('openExamNavButton')?.addEventListener('click', openExamQuestionDrawer);
+  $('openExamNavButtonInline')?.addEventListener('click', openExamQuestionDrawer);
+  $('jumpFirstUnansweredButton')?.addEventListener('click', jumpFirstUnansweredExamQuestion);
   form.addEventListener('change', updateExamQuestionNavigation);
   form.addEventListener('input', updateExamQuestionNavigation);
   renderExamQuestionNavigation();
@@ -1758,9 +1767,7 @@ function renderExamQuestionNavigation() {
       <small>${escapeHtml(q.id)}</small>
     </button>
   `).join('');
-  const nav = $('examQuestionNav');
   const drawer = $('examQuestionDrawerContent');
-  if (nav) nav.innerHTML = html;
   if (drawer) drawer.innerHTML = html;
   document.querySelectorAll('[data-exam-jump]').forEach(button => {
     button.addEventListener('click', () => {
@@ -1773,20 +1780,37 @@ function renderExamQuestionNavigation() {
 
 function updateExamQuestionNavigation() {
   if (!state.exam) return;
+  let answeredCount = 0;
   document.querySelectorAll('[data-exam-jump]').forEach(button => {
     const index = Number(button.dataset.examJump);
     const q = state.exam.questions[index];
     const answered = q && !isEmptyAnswer(getExamAnswer(q, index), q.type);
+    if (answered) answeredCount += 1;
     button.classList.toggle('answered', Boolean(answered));
     button.classList.toggle('unanswered', !answered);
-    button.title = answered ? '已作答' : '未作答';
+    button.title = answered ? `第 ${index + 1} 題：已作答` : `第 ${index + 1} 題：未作答`;
   });
+  const total = state.exam.questions.length;
+  const unanswered = Math.max(0, total - answeredCount);
+  const summary = $('examNavSummaryText');
+  if (summary) summary.textContent = `已作答 ${answeredCount} / ${total} 題，未作答 ${unanswered} 題`;
 }
 
 function jumpToExamQuestion(index) {
   const el = document.getElementById(`exam-question-${index}`);
   if (!el) return;
   scrollToElement(el);
+}
+
+function jumpFirstUnansweredExamQuestion() {
+  if (!state.exam) return;
+  const index = state.exam.questions.findIndex((question, questionIndex) => isEmptyAnswer(getExamAnswer(question, questionIndex), question.type));
+  if (index < 0) {
+    showMessage('所有題目都已作答。', 'success');
+    return;
+  }
+  closeExamQuestionDrawer();
+  jumpToExamQuestion(index);
 }
 
 function openExamQuestionDrawer() {
