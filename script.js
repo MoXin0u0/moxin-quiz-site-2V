@@ -832,7 +832,10 @@ function renderQuestion(useCurrent = false) {
     practice.answered = false;
   }
   $('submitAnswerButton').disabled = false;
+  $('submitAnswerButton').textContent = '提交答案';
+  $('submitAnswerButton').classList.remove('secondary');
   $('nextQuestionButton').disabled = true;
+  $('nextQuestionButton').classList.add('hidden');
   $('explanationArea').className = 'explanation-area hidden';
   $('explanationArea').innerHTML = '';
 
@@ -923,11 +926,21 @@ function buildAnswerInputs(question, prefix) {
   return '<p>不支援的題型。</p>';
 }
 
+function handlePracticeActionButton() {
+  const practice = state.practice;
+  if (!practice || !practice.currentQuestion) return;
+  if (practice.answered) {
+    nextQuestion();
+  } else {
+    submitAnswer();
+  }
+}
+
 function submitAnswer() {
   const practice = state.practice;
   if (!practice || !practice.currentQuestion) return;
   if (practice.answered) {
-    showMessage('本題已提交，請按下一題。', 'warning');
+    nextQuestion();
     return;
   }
   const question = practice.currentQuestion;
@@ -955,8 +968,11 @@ function submitAnswer() {
   showExplanation(question, userAnswer, isCorrect);
   markCorrectAnswer(question);
   if (!isCorrect) markWrongAnswer(question, userAnswer);
-  $('submitAnswerButton').disabled = true;
-  $('nextQuestionButton').disabled = false;
+  $('submitAnswerButton').disabled = false;
+  $('submitAnswerButton').textContent = practice.queue.length === 0 ? '查看本輪結果' : '下一題';
+  $('submitAnswerButton').classList.add('secondary');
+  $('nextQuestionButton').disabled = true;
+  $('nextQuestionButton').classList.add('hidden');
   updateProgress();
   saveProgress();
 }
@@ -1944,7 +1960,7 @@ function bindGlobalEvents() {
   $('startFavoritePracticeButton').addEventListener('click', () => startFavoritePractice());
   $('resumePracticeButton').addEventListener('click', loadProgress);
   $('clearCurrentProgressButton').addEventListener('click', () => { clearProgress(); showMessage('目前題庫進度已清除。', 'success'); });
-  $('submitAnswerButton').addEventListener('click', submitAnswer);
+  $('submitAnswerButton').addEventListener('click', handlePracticeActionButton);
   $('nextQuestionButton').addEventListener('click', nextQuestion);
   $('favoriteButton').addEventListener('click', toggleFavoriteQuestion);
   $('backToBankButton').addEventListener('click', () => showPage('bankDetailPage'));
