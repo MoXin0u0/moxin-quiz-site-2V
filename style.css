@@ -29,7 +29,10 @@
 
 * { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
 
 body {
   margin: 0;
@@ -113,9 +116,33 @@ button:focus-visible, .file-button:focus-visible, input:focus-visible, select:fo
   outline-offset: 2px;
 }
 
-input[type="checkbox"], input[type="radio"] {
-  width: auto;
+input[type="checkbox"],
+input[type="radio"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  min-width: 1.05rem;
+  flex: 0 0 1.05rem;
+  padding: 0;
+  margin: 0.26rem 0.1rem 0 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  transform: none;
+  transition: none;
   accent-color: var(--primary);
+}
+
+input[type="checkbox"]:focus,
+input[type="radio"]:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 3px;
 }
 
 code {
@@ -323,13 +350,21 @@ main {
   border: 1px solid var(--line);
   border-radius: 15px;
   background: #ffffff;
-  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+  min-height: 48px;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
 }
 
-.option-row:hover {
+.option-row:hover,
+.option-row:has(input:checked) {
   border-color: rgba(37, 99, 235, 0.45);
   background: #f8fbff;
   box-shadow: var(--shadow-soft);
+}
+
+.option-row:has(input:focus-visible) {
+  border-color: rgba(37, 99, 235, 0.65);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .option-row.correct {
@@ -437,16 +472,27 @@ main {
   background: #ffffff;
   box-shadow: var(--shadow-soft);
 }
+#examActiveArea {
+  padding-bottom: 5rem;
+}
+
 .exam-timer {
-  position: sticky;
-  top: 92px;
-  z-index: 10;
-  padding: 0.85rem 1rem;
-  border-radius: 15px;
+  position: fixed;
+  right: clamp(1rem, 3vw, 2rem);
+  bottom: 1.25rem;
+  top: auto;
+  z-index: 100;
+  width: auto;
+  max-width: min(360px, calc(100% - 2rem));
+  padding: 0.85rem 1.15rem;
+  border-radius: 999px;
   background: linear-gradient(135deg, #1d4ed8, #0f766e);
   color: var(--primary-contrast);
-  margin-bottom: 1rem;
-  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.2);
+  margin-bottom: 0;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.22);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 @media (max-width: 820px) {
@@ -458,4 +504,13 @@ main {
   .toolbar, .top-actions { align-items: stretch; }
   .toolbar button, .toolbar .file-button, .top-actions button { flex: 1 1 auto; }
   .question-panel h2 { font-size: 1.2rem; }
+  .exam-timer {
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    max-width: none;
+    justify-content: center;
+    text-align: center;
+  }
+  #examActiveArea { padding-bottom: 5.5rem; }
 }
