@@ -92,6 +92,7 @@
           <button type="button" id="startPracticeButton">開始隨機刷題</button>
           <button type="button" id="startWrongPracticeButton" class="secondary">只練習錯題</button>
           <button type="button" id="startFavoritePracticeButton" class="secondary">只練習收藏題目</button>
+          <button type="button" id="startUnfamiliarPracticeButton" class="secondary">只練習不熟題</button>
           <button type="button" id="resumePracticeButton" class="secondary">載入上次進度</button>
           <button type="button" id="clearCurrentProgressButton" class="danger">清除目前題庫進度</button>
         </div>
@@ -105,6 +106,7 @@
           <div id="progressStats" class="stats-list"></div>
           <div class="toolbar vertical">
             <button type="button" id="favoriteButton" class="secondary">加入收藏</button>
+            <button type="button" id="unfamiliarButton" class="secondary">標記不熟</button>
             <button type="button" id="backToBankButton" class="secondary">回題庫</button>
             <button type="button" data-nav="home" class="secondary">回首頁</button>
           </div>
@@ -120,6 +122,12 @@
           </div>
           <div id="explanationArea" class="explanation-area hidden"></div>
         </section>
+      </div>
+      <div id="mobilePracticeBar" class="mobile-practice-bar" aria-label="手機刷題操作列">
+        <button type="button" id="mobilePracticeActionButton">提交答案</button>
+        <button type="button" id="mobileFavoriteButton" class="secondary">收藏</button>
+        <button type="button" id="mobileUnfamiliarButton" class="secondary">不熟</button>
+        <button type="button" id="mobileTopButton" class="secondary">頂端</button>
       </div>
     </section>
 
@@ -165,7 +173,7 @@
     </section>
 
     <section id="examPage" class="page">
-      <div class="panel">
+      <div id="examSetupPanel" class="panel">
         <button type="button" class="secondary" data-nav="home">← 回首頁</button>
         <h2>模擬考模式</h2>
         <p>模擬考過程不顯示答案與詳解，交卷後一次批改。</p>
@@ -185,6 +193,17 @@
         </div>
       </div>
       <div id="examActiveArea" class="hidden"></div>
+      <button type="button" id="examNavFloatingButton" class="exam-nav-floating-button hidden">題號</button>
+      <div id="examQuestionDrawer" class="exam-question-drawer hidden" aria-hidden="true">
+        <div class="exam-question-drawer-backdrop" data-close-exam-drawer></div>
+        <div class="exam-question-drawer-panel" role="dialog" aria-label="模擬考題號導覽">
+          <div class="drawer-header">
+            <strong>題號導覽</strong>
+            <button type="button" id="closeExamDrawerButton" class="secondary">關閉</button>
+          </div>
+          <div id="examQuestionDrawerContent" class="exam-question-nav"></div>
+        </div>
+      </div>
       <div id="examResultArea" class="card-list"></div>
     </section>
 
@@ -245,6 +264,37 @@
         <button type="button" class="secondary" data-nav="home">← 回首頁</button>
         <h2>資料管理</h2>
         <p>資料儲存在瀏覽器 localStorage。更換瀏覽器、清除瀏覽資料或使用無痕模式可能導致資料消失。</p>
+        <div class="settings-block">
+          <h3>閱讀與操作設定</h3>
+          <div class="filter-grid">
+            <label>字體大小
+              <select id="prefFontSize">
+                <option value="standard">標準</option>
+                <option value="large">大</option>
+                <option value="xlarge">特大</option>
+              </select>
+            </label>
+            <label>選項間距
+              <select id="prefOptionSpacing">
+                <option value="standard">標準</option>
+                <option value="comfortable">舒適</option>
+              </select>
+            </label>
+            <label>深色模式
+              <select id="prefDarkMode">
+                <option value="off">關閉</option>
+                <option value="on">開啟</option>
+              </select>
+            </label>
+            <label>手機底部操作列
+              <select id="prefMobileBar">
+                <option value="on">開啟</option>
+                <option value="off">關閉</option>
+              </select>
+            </label>
+          </div>
+          <p class="muted">電腦版支援快捷鍵：A/B/C/D 選答案、Enter 提交或下一題、F 收藏、U 標記不熟。</p>
+        </div>
         <div class="toolbar">
           <button type="button" id="exportAllDataButton" class="secondary">匯出所有本機資料 JSON</button>
           <label class="file-button secondary-file">
