@@ -337,27 +337,13 @@ fill_blank
 
 每一題都必須有 explanation。
 
-詳解不能只是重複答案，也不能只寫「因為 A 符合題意，所以選 A」這類空泛說明。
-
-詳解必須真正分析題目所要求的知識點，並將題目條件與各選項逐一連結，讓使用者能透過詳解理解為什麼該選項正確、其他選項錯誤。
-
 詳解請包含：
 
-先說明本題在考什麼概念、定義、流程、分類、公式或應用情境。
-說明正確答案為什麼符合題目的要求。
-若是單選題，必須逐一說明 A、B、C、D 各選項為何正確或錯誤。
-若是複選題，必須逐一分析每一個選項，說明哪些選項應選、哪些選項不應選。
-若是「組合題」，例如選項為 123、124、1234、2345 等形式，必須先逐一分析題目中的每一個編號項目，例如 (1)(2)(3)(4)(5)，說明每一項是否正確，再回頭判斷 A、B、C、D 哪一個組合完整且正確。
-若某個編號項目不應被選入，必須明確說明它錯在哪裡，不能只說「不符合題意」。
-若某個編號項目是正確的，除了說它正確，也要簡要介紹該概念的意義、功能或應用情境。
-若是計算題，必須列出公式、代入數值、計算過程與答案，並說明其他選項為什麼不是正確結果。
-若是名詞定義題，必須說明該名詞的核心意義、用途，以及容易混淆的相近概念。
-若是流程順序題，必須說明每個流程步驟的先後邏輯，不可只列出正確順序。
-若是圖片題，詳解必須呼應圖片中的資訊、圖表、流程或標示內容。
-文字要清楚、簡單、適合考前複習，但不可過度簡略。
-不要自行新增原始題庫沒有的題目、答案或未提供的背景資料。
-如果原始資料未明確提供答案，請在 explanation 中標記「原始資料未明確提供答案，需人工確認」。
-如果疑似官方答案有誤，不要擅自更改 answer，請在 explanation 中提醒「此題答案可能需人工確認」。
+1. 為什麼正確答案是這個。
+2. 若是選擇題，請說明其他選項錯在哪裡。
+3. 說明本題的核心知識點。
+4. 文字要清楚、簡單、適合考前複習。
+5. 如果原題有圖片，詳解要能呼應圖片內容。
 
 詳解風格範例：
 
@@ -1554,11 +1540,12 @@ function submitExam() {
   renderExamResult(examRecord);
 }
 
-function renderExamResult(result) {
+function renderExamResult(result, filter = 'all', shouldScrollTop = true) {
   $('examActiveArea').className = 'hidden';
   const area = $('examResultArea');
+  const visibleRecords = filter === 'wrong' ? result.records.filter(record => !record.isCorrect) : result.records;
   area.innerHTML = `
-    <div class="panel">
+    <div class="panel exam-result-summary">
       <h2>模擬考結果</h2>
       <div class="stats-list">
         ${statItem('得分', result.score)}
@@ -1566,26 +1553,51 @@ function renderExamResult(result) {
         ${statItem('答對題數', result.correct)}
         ${statItem('答錯題數', result.wrong)}
       </div>
+      <div class="toolbar exam-result-filter" aria-label="模擬考結果顯示篩選">
+        <button type="button" id="examResultShowAllButton" class="${filter === 'all' ? '' : 'secondary'}">查看全部題目</button>
+        <button type="button" id="examResultShowWrongButton" class="${filter === 'wrong' ? '' : 'secondary'}">只看錯題</button>
+      </div>
+      <p class="muted">目前顯示：${filter === 'wrong' ? `錯題 ${visibleRecords.length} 題` : `全部 ${visibleRecords.length} 題`}</p>
     </div>
   `;
-  result.records.forEach(record => {
-    area.appendChild(buildExamResultCard(record));
-  });
+
+  $('examResultShowAllButton').addEventListener('click', () => renderExamResult(result, 'all', false));
+  $('examResultShowWrongButton').addEventListener('click', () => renderExamResult(result, 'wrong', false));
+
+  if (visibleRecords.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'panel notice';
+    empty.textContent = filter === 'wrong' ? '本次模擬考沒有錯題。' : '本次模擬考沒有可顯示的題目。';
+    area.appendChild(empty);
+  } else {
+    visibleRecords.forEach(record => {
+      area.appendChild(buildExamResultCard(record));
+    });
+  }
+
   renderLocalDataSummary();
+  if (shouldScrollTop) {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const resultPanel = area.querySelector('.exam-result-summary');
+      if (resultPanel) resultPanel.focus?.({ preventScroll: true });
+    });
+  }
 }
 
 function buildExamResultCard(record) {
   const q = record.snapshot;
   const card = document.createElement('article');
-  card.className = 'record-card';
+  card.className = `record-card ${record.isCorrect ? 'exam-result-correct' : 'exam-result-wrong'}`;
   const imgId = `exam-result-img-${q.id}-${Math.random().toString(36).slice(2)}`;
   const expImgId = `exam-result-exp-${q.id}-${Math.random().toString(36).slice(2)}`;
   card.innerHTML = `
     <h3>${escapeHtml(q.id)}｜${escapeHtml(q.question)}</h3>
     <div class="meta-row"><span class="badge ${record.isCorrect ? 'success' : 'danger'}">${record.isCorrect ? '答對' : '答錯'}</span><span class="badge">${TYPE_LABELS[q.type]}</span></div>
     <div id="${imgId}" class="image-list"></div>
-    <p>使用者答案：<span class="${record.isCorrect ? 'correct-text' : 'wrong-text'}">${escapeHtml(formatAnswer(q, record.userAnswer))}</span></p>
-    <p>正確答案：<span class="correct-text">${escapeHtml(formatAnswer(q, q.answer))}</span></p>
+    <p>使用者答案：<span class="${record.isCorrect ? 'correct-text' : 'wrong-text'}">${escapeHtml(formatAnswerWithOptionText(q, record.userAnswer))}</span></p>
+    <p>正確答案：<span class="correct-text">${escapeHtml(formatAnswerWithOptionText(q, q.answer))}</span></p>
+    ${buildExamResultOptionReview(q, record.userAnswer)}
     <p>詳解：${escapeHtml(q.explanation)}</p>
     <div id="${expImgId}" class="image-list"></div>
   `;
@@ -1594,6 +1606,84 @@ function buildExamResultCard(record) {
     renderImages(q.explanationImages || [], document.getElementById(expImgId));
   }, 0);
   return card;
+}
+
+function formatAnswerWithOptionText(question, answer) {
+  if (question.type === 'single_choice') {
+    return formatOptionAnswer(question, answer);
+  }
+  if (question.type === 'multiple_choice') {
+    if (!Array.isArray(answer) || answer.length === 0) return '未作答';
+    return answer.map(item => formatOptionAnswer(question, item)).join('；');
+  }
+  return formatAnswer(question, answer);
+}
+
+function formatOptionAnswer(question, answerKey) {
+  if (answerKey === null || answerKey === undefined || answerKey === '') return '未作答';
+  const key = String(answerKey);
+  const optionText = question.options?.[key];
+  return optionText ? `${key}. ${optionText}` : key;
+}
+
+function buildExamResultOptionReview(question, userAnswer) {
+  if (question.type === 'single_choice' || question.type === 'multiple_choice') {
+    const correctSet = new Set((Array.isArray(question.answer) ? question.answer : [question.answer]).map(item => String(item)));
+    const userSet = new Set((Array.isArray(userAnswer) ? userAnswer : (userAnswer ? [userAnswer] : [])).map(item => String(item)));
+    const rows = Object.entries(question.options || {}).map(([key, text]) => {
+      const isCorrectOption = correctSet.has(String(key));
+      const isSelectedOption = userSet.has(String(key));
+      const classes = ['answer-option-item'];
+      if (isCorrectOption) classes.push('correct');
+      if (isSelectedOption && !isCorrectOption) classes.push('wrong');
+      if (isSelectedOption) classes.push('selected');
+      const flags = [
+        isSelectedOption ? '<span class="mini-badge selected">你的答案</span>' : '',
+        isCorrectOption ? '<span class="mini-badge correct">正確答案</span>' : ''
+      ].join('');
+      return `
+        <div class="${classes.join(' ')}">
+          <span class="option-code">${escapeHtml(key)}</span>
+          <span class="option-text">${escapeHtml(text)}</span>
+          <span class="option-flags">${flags}</span>
+        </div>
+      `;
+    }).join('');
+    return `<div class="answer-option-review"><h4>選項內容</h4>${rows}</div>`;
+  }
+
+  if (question.type === 'true_false') {
+    const choices = [
+      { value: true, label: 'O / 是 / 正確' },
+      { value: false, label: 'X / 否 / 錯誤' }
+    ];
+    const rows = choices.map(choice => {
+      const isCorrectOption = question.answer === choice.value;
+      const isSelectedOption = userAnswer === choice.value;
+      const classes = ['answer-option-item'];
+      if (isCorrectOption) classes.push('correct');
+      if (isSelectedOption && !isCorrectOption) classes.push('wrong');
+      if (isSelectedOption) classes.push('selected');
+      const flags = [
+        isSelectedOption ? '<span class="mini-badge selected">你的答案</span>' : '',
+        isCorrectOption ? '<span class="mini-badge correct">正確答案</span>' : ''
+      ].join('');
+      return `
+        <div class="${classes.join(' ')}">
+          <span class="option-code">${choice.value ? 'O' : 'X'}</span>
+          <span class="option-text">${escapeHtml(choice.label)}</span>
+          <span class="option-flags">${flags}</span>
+        </div>
+      `;
+    }).join('');
+    return `<div class="answer-option-review"><h4>選項內容</h4>${rows}</div>`;
+  }
+
+  if (question.type === 'fill_blank' && Array.isArray(question.answer)) {
+    return `<div class="answer-option-review"><h4>可接受答案</h4><p>${escapeHtml(question.answer.join('；'))}</p></div>`;
+  }
+
+  return '';
 }
 
 function updateWrongBookForBank(bankId, bankTitle, question, userAnswer) {
