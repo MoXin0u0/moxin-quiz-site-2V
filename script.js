@@ -966,8 +966,7 @@ function submitAnswer() {
   practice.records.push(record);
   appendAnswerRecord(record);
   showExplanation(question, userAnswer, isCorrect);
-  markCorrectAnswer(question);
-  if (!isCorrect) markWrongAnswer(question, userAnswer);
+  markAnswerFeedback(question, userAnswer);
   $('submitAnswerButton').disabled = false;
   $('submitAnswerButton').textContent = practice.queue.length === 0 ? '查看本輪結果' : '下一題';
   $('submitAnswerButton').classList.add('secondary');
@@ -1039,36 +1038,76 @@ function showExplanation(question, userAnswer, isCorrect) {
 }
 
 function markCorrectAnswer(question) {
-  if (question.type === 'single_choice' || question.type === 'multiple_choice') {
-    const answers = Array.isArray(question.answer) ? question.answer : [question.answer];
-    answers.forEach(ans => {
-      const row = document.querySelector(`.option-row[data-option="${cssEscape(ans)}"]`);
-      if (row) row.classList.add('correct');
-    });
-  }
-  if (question.type === 'true_false') {
-    const row = document.querySelector(`.option-row[data-option="${question.answer}"]`);
+  getCorrectAnswerValues(question).forEach(ans => {
+    const row = document.querySelector(`.option-row[data-option="${cssEscape(ans)}"]`);
     if (row) row.classList.add('correct');
-  }
+  });
 }
 
 function markWrongAnswer(question, userAnswer) {
-  if (question.type === 'single_choice') {
-    const row = document.querySelector(`.option-row[data-option="${cssEscape(userAnswer)}"]`);
-    if (row) row.classList.add('wrong');
-  }
-  if (question.type === 'multiple_choice') {
-    (userAnswer || []).forEach(ans => {
-      if (!(question.answer || []).includes(ans)) {
-        const row = document.querySelector(`.option-row[data-option="${cssEscape(ans)}"]`);
-        if (row) row.classList.add('wrong');
+  const correctValues = new Set(getCorrectAnswerValues(question));
+  getUserAnswerValues(question, userAnswer).forEach(ans => {
+    if (!correctValues.has(ans)) {
+      const row = document.querySelector(`.option-row[data-option="${cssEscape(ans)}"]`);
+      if (row) row.classList.add('wrong');
+    }
+  });
+}
+
+function markAnswerFeedback(question, userAnswer) {
+  if (!['single_choice', 'multiple_choice', 'true_false'].includes(question.type)) return;
+
+  const correctValues = new Set(getCorrectAnswerValues(question));
+  const userValues = new Set(getUserAnswerValues(question, userAnswer));
+
+  document.querySelectorAll('#answerForm input').forEach(input => {
+    input.disabled = true;
+  });
+
+  document.querySelectorAll('#answerForm .option-row').forEach(row => {
+    const value = String(row.dataset.option);
+    const isCorrectOption = correctValues.has(value);
+    const isUserOption = userValues.has(value);
+
+    row.classList.remove('correct', 'wrong', 'selected-answer');
+    row.querySelectorAll('.answer-feedback-tags').forEach(el => el.remove());
+
+    if (isCorrectOption) row.classList.add('correct');
+    if (isUserOption && !isCorrectOption) row.classList.add('wrong');
+    if (isUserOption) row.classList.add('selected-answer');
+
+    if (isCorrectOption || isUserOption) {
+      const tags = document.createElement('span');
+      tags.className = 'answer-feedback-tags';
+      if (isUserOption) {
+        const userTag = document.createElement('span');
+        userTag.className = `answer-feedback-tag ${isCorrectOption ? 'user-correct' : 'user-wrong'}`;
+        userTag.textContent = '你的答案';
+        tags.appendChild(userTag);
       }
-    });
-  }
-  if (question.type === 'true_false') {
-    const row = document.querySelector(`.option-row[data-option="${userAnswer}"]`);
-    if (row) row.classList.add('wrong');
-  }
+      if (isCorrectOption) {
+        const correctTag = document.createElement('span');
+        correctTag.className = 'answer-feedback-tag correct-answer';
+        correctTag.textContent = '正確答案';
+        tags.appendChild(correctTag);
+      }
+      row.appendChild(tags);
+    }
+  });
+}
+
+function getCorrectAnswerValues(question) {
+  if (question.type === 'multiple_choice') return (question.answer || []).map(item => String(item));
+  if (question.type === 'true_false') return [String(question.answer)];
+  if (question.type === 'single_choice') return [String(question.answer)];
+  return [];
+}
+
+function getUserAnswerValues(question, userAnswer) {
+  if (question.type === 'multiple_choice') return (userAnswer || []).map(item => String(item));
+  if (question.type === 'true_false') return userAnswer === null || userAnswer === undefined ? [] : [String(userAnswer)];
+  if (question.type === 'single_choice') return userAnswer ? [String(userAnswer)] : [];
+  return [];
 }
 
 function addWrongQuestionBackToQueue(question) {
