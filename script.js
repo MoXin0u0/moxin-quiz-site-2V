@@ -1655,21 +1655,14 @@ function renderExamActive() {
   area.className = '';
   area.innerHTML = `
     <div class="exam-timer" id="examTimerText"></div>
-    <div class="panel exam-active-header">
-      <h3>${escapeHtml(state.exam.bankTitle)}</h3>
-      <p>請完成所有題目後交卷。未作答題目會以錯誤計算。</p>
-      <div class="toolbar">
-        <button type="button" id="openExamNavButton" class="secondary">題號導覽</button>
+    <div class="panel exam-active-header exam-compact-header">
+      <div>
+        <h3>${escapeHtml(state.exam.bankTitle)}</h3>
+        <p>請完成所有題目後交卷。未作答題目會以錯誤計算。</p>
+        <p id="examNavSummaryText" class="exam-inline-summary">尚未作答</p>
       </div>
-    </div>
-    <div class="panel exam-nav-panel exam-nav-summary-panel">
-      <div class="drawer-header">
-        <strong>題號導覽</strong>
-        <span id="examNavSummaryText" class="muted">尚未作答</span>
-      </div>
-      <p class="muted">題數較多時不直接攤開全部題號，避免遮住題目。需要跳題時請開啟題號面板。</p>
-      <div class="toolbar">
-        <button type="button" id="openExamNavButtonInline" class="secondary">開啟題號面板</button>
+      <div class="toolbar exam-header-actions">
+        <button type="button" id="openExamNavButton" class="secondary">開啟題號面板</button>
         <button type="button" id="jumpFirstUnansweredButton" class="secondary">跳到第一題未作答</button>
       </div>
     </div>
@@ -1694,7 +1687,6 @@ function renderExamActive() {
   });
   $('submitExamButton').addEventListener('click', () => submitExam(false));
   $('openExamNavButton')?.addEventListener('click', openExamQuestionDrawer);
-  $('openExamNavButtonInline')?.addEventListener('click', openExamQuestionDrawer);
   $('jumpFirstUnansweredButton')?.addEventListener('click', jumpFirstUnansweredExamQuestion);
   form.addEventListener('change', updateExamQuestionNavigation);
   form.addEventListener('input', updateExamQuestionNavigation);
@@ -1792,8 +1784,13 @@ function updateExamQuestionNavigation() {
   });
   const total = state.exam.questions.length;
   const unanswered = Math.max(0, total - answeredCount);
+  const summaryText = `已作答 ${answeredCount} / ${total} 題，未作答 ${unanswered} 題`;
   const summary = $('examNavSummaryText');
-  if (summary) summary.textContent = `已作答 ${answeredCount} / ${total} 題，未作答 ${unanswered} 題`;
+  if (summary) summary.textContent = summaryText;
+  const drawerSummary = $('examDrawerSummaryText');
+  if (drawerSummary) drawerSummary.textContent = summaryText;
+  const floatingButton = $('examNavFloatingButton');
+  if (floatingButton) floatingButton.innerHTML = `<span>題號</span><strong>${answeredCount}/${total}</strong>`;
 }
 
 function jumpToExamQuestion(index) {
@@ -2727,6 +2724,7 @@ function bindGlobalEvents() {
   $('startExamButton').addEventListener('click', startExamMode);
   $('examNavFloatingButton').addEventListener('click', openExamQuestionDrawer);
   $('closeExamDrawerButton').addEventListener('click', closeExamQuestionDrawer);
+  $('jumpFirstUnansweredDrawerButton')?.addEventListener('click', jumpFirstUnansweredExamQuestion);
   document.querySelectorAll('[data-close-exam-drawer]').forEach(el => el.addEventListener('click', closeExamQuestionDrawer));
   $('validatorFileInput').addEventListener('change', event => inspectUploadedQuestionBank(event.target.files[0]));
   $('validatorLoadSelectedButton').addEventListener('click', inspectSelectedQuestionBank);
