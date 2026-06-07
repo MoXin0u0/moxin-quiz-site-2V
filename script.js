@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   progress: 'moxin.progress',
   wrongBook: 'moxin.wrongBook',
   favorites: 'moxin.favorites',
+  unfamiliar: 'moxin.unfamiliar',
   importedBanks: 'moxin.importedBanks',
   answerRecords: 'moxin.answerRecords',
   examRecords: 'moxin.examRecords',
@@ -469,7 +470,9 @@ const state = {
   practice: null,
   exam: null,
   examTimerId: null,
-  validatorReport: null
+  validatorReport: null,
+  uiPrefs: null,
+  lastExamResult: null
 };
 
 function $(id) {
@@ -480,6 +483,9 @@ function initApp() {
   bindGlobalEvents();
   $('aiPromptText').textContent = AI_PROMPT;
   state.importedBanks = loadFromLocalStorage(STORAGE_KEYS.importedBanks, {});
+  state.uiPrefs = loadUiPrefs();
+  applyUiPrefs();
+  syncUiPrefControls();
   loadQuestionBanks();
   renderLocalDataSummary();
   populateValidatorBankSelect();
@@ -740,6 +746,8 @@ function startPractice(questions = null, mode = 'all') {
   saveProgress();
   showPage('practicePage');
   renderQuestion();
+  syncMobilePracticeBar();
+  requestAnimationFrame(() => scrollToElement('practicePage', 'auto'));
 }
 
 async function startWrongBookPractice(bankId = null) {
@@ -776,6 +784,28 @@ async function startFavoritePractice(bankId = null) {
     return;
   }
   startPractice(questions, 'favorites');
+}
+
+
+async function startUnfamiliarPractice(bankId = null) {
+  const targetBankId = bankId || state.currentBankData?.bankId;
+  if (!targetBankId) {
+    showMessage('請先選擇題庫。', 'warning');
+    return;
+  }
+  const bank = state.currentBankData?.bankId === targetBankId ? state.currentBankData : await loadQuestionBankForExam(targetBankId);
+  if (!bank) return;
+  state.currentBankData = bank;
+  state.currentBankMeta = findBankMeta(targetBankId);
+  state.filteredQuestions = Array.isArray(bank.questions) ? bank.questions : [];
+  const unfamiliar = loadFromLocalStorage(STORAGE_KEYS.unfamiliar, {});
+  const ids = Object.keys(unfamiliar[targetBankId] || {});
+  const questions = bank.questions.filter(q => ids.includes(q.id));
+  if (questions.length === 0) {
+    showMessage('這個題庫目前沒有不熟題。', 'warning');
+    return;
+  }
+  startPractice(questions, 'unfamiliar');
 }
 
 function startExamMode() {
@@ -859,6 +889,8 @@ function renderQuestion(useCurrent = false) {
   updateProgress();
   saveProgress();
   updateFavoriteButton();
+  updateUnfamiliarButton();
+  syncMobilePracticeBar();
 }
 
 function renderQuestionImages(question) {
@@ -940,6 +972,35 @@ function handlePracticeActionButton() {
   }
 }
 
+
+function syncMobilePracticeBar() {
+  const p = state.practice;
+  const mainButton = $('submitAnswerButton');
+  const mobileAction = $('mobilePracticeActionButton');
+  if (mainButton && mobileAction) {
+    mobileAction.textContent = mainButton.textContent || '提交答案';
+    mobileAction.disabled = mainButton.disabled;
+    mobileAction.className = mainButton.className;
+  }
+  const favoriteButton = $('favoriteButton');
+  const mobileFavoriteButton = $('mobileFavoriteButton');
+  if (favoriteButton && mobileFavoriteButton) mobileFavoriteButton.textContent = favoriteButton.textContent.includes('取消') ? '已收藏' : '收藏';
+  const unfamiliarButton = $('unfamiliarButton');
+  const mobileUnfamiliarButton = $('mobileUnfamiliarButton');
+  if (unfamiliarButton && mobileUnfamiliarButton) mobileUnfamiliarButton.textContent = unfamiliarButton.textContent.includes('取消') ? '已不熟' : '不熟';
+  const bar = $('mobilePracticeBar');
+  if (bar) bar.hidden = !p || state.uiPrefs?.mobileBar === 'off';
+}
+
+function scrollToElement(id, behavior = 'smooth') {
+  const el = typeof id === 'string' ? $(id) : id;
+  if (!el) return;
+  const headerOffset = 92;
+  const rect = el.getBoundingClientRect();
+  const top = Math.max(0, window.pageYOffset + rect.top - headerOffset);
+  window.scrollTo({ top, behavior });
+}
+
 function submitAnswer() {
   const practice = state.practice;
   if (!practice || !practice.currentQuestion) return;
@@ -978,6 +1039,8 @@ function submitAnswer() {
   $('nextQuestionButton').classList.add('hidden');
   updateProgress();
   saveProgress();
+  syncMobilePracticeBar();
+  requestAnimationFrame(() => scrollToElement('explanationArea'));
 }
 
 function getUserAnswer(question, root = document) {
@@ -1170,6 +1233,46 @@ function toggleFavoriteQuestion() {
   updateFavoriteButton();
 }
 
+
+function toggleUnfamiliarQuestion() {
+  if (!state.practice?.currentQuestion || !state.currentBankData) return;
+  const question = state.practice.currentQuestion;
+  const bankId = state.currentBankData.bankId;
+  const unfamiliar = loadFromLocalStorage(STORAGE_KEYS.unfamiliar, {});
+  if (!unfamiliar[bankId]) unfamiliar[bankId] = {};
+  if (unfamiliar[bankId][question.id]) {
+    delete unfamiliar[bankId][question.id];
+    showMessage('已取消不熟標記。', 'success');
+  } else {
+    unfamiliar[bankId][question.id] = {
+      bankId,
+      bankTitle: state.currentBankData.title,
+      questionId: question.id,
+      markedAt: new Date().toISOString(),
+      snapshot: question
+    };
+    showMessage('已標記為不熟題。', 'success');
+  }
+  if (Object.keys(unfamiliar[bankId]).length === 0) delete unfamiliar[bankId];
+  saveToLocalStorage(STORAGE_KEYS.unfamiliar, unfamiliar);
+  updateUnfamiliarButton();
+}
+
+function updateUnfamiliarButton() {
+  const q = state.practice?.currentQuestion;
+  const bankId = state.currentBankData?.bankId;
+  const btn = $('unfamiliarButton');
+  if (!btn) return;
+  if (!q || !bankId) {
+    btn.textContent = '標記不熟';
+    syncMobilePracticeBar();
+    return;
+  }
+  const unfamiliar = loadFromLocalStorage(STORAGE_KEYS.unfamiliar, {});
+  btn.textContent = unfamiliar[bankId]?.[q.id] ? '取消不熟標記' : '標記不熟';
+  syncMobilePracticeBar();
+}
+
 function removeFromFavorite(bankId, questionId) {
   const favorites = loadFromLocalStorage(STORAGE_KEYS.favorites, {});
   if (favorites[bankId]) {
@@ -1187,6 +1290,8 @@ function nextQuestion() {
     return;
   }
   renderQuestion();
+  requestAnimationFrame(() => scrollToElement('practicePage'));
+  syncMobilePracticeBar();
 }
 
 function updateProgress() {
@@ -1243,6 +1348,7 @@ function finishRound() {
     });
   }
   showPage('finishPage');
+  requestAnimationFrame(() => scrollToElement('finishPage'));
 }
 
 function saveProgress() {
@@ -1266,6 +1372,57 @@ function loadProgress() {
 
 function clearProgress() {
   localStorage.removeItem(STORAGE_KEYS.progress);
+}
+
+
+function loadUiPrefs() {
+  const defaults = {
+    fontSize: 'standard',
+    optionSpacing: 'standard',
+    darkMode: 'off',
+    mobileBar: 'on'
+  };
+  const stored = loadFromLocalStorage(STORAGE_KEYS.uiPrefs, {});
+  return { ...defaults, ...(isPlainObject(stored) ? stored : {}) };
+}
+
+function saveUiPrefs() {
+  saveToLocalStorage(STORAGE_KEYS.uiPrefs, state.uiPrefs || loadUiPrefs());
+}
+
+function applyUiPrefs() {
+  const prefs = state.uiPrefs || loadUiPrefs();
+  document.body.classList.toggle('font-large', prefs.fontSize === 'large');
+  document.body.classList.toggle('font-xlarge', prefs.fontSize === 'xlarge');
+  document.body.classList.toggle('option-comfortable', prefs.optionSpacing === 'comfortable');
+  document.body.classList.toggle('dark-mode', prefs.darkMode === 'on');
+  document.body.classList.toggle('mobile-bar-off', prefs.mobileBar === 'off');
+  syncMobilePracticeBar();
+}
+
+function syncUiPrefControls() {
+  const prefs = state.uiPrefs || loadUiPrefs();
+  const mapping = {
+    prefFontSize: prefs.fontSize,
+    prefOptionSpacing: prefs.optionSpacing,
+    prefDarkMode: prefs.darkMode,
+    prefMobileBar: prefs.mobileBar
+  };
+  Object.entries(mapping).forEach(([id, value]) => {
+    const el = $(id);
+    if (el) el.value = value;
+  });
+}
+
+function updateUiPref(name, value) {
+  state.uiPrefs = { ...(state.uiPrefs || loadUiPrefs()), [name]: value };
+  saveUiPrefs();
+  applyUiPrefs();
+}
+
+function collectUnfamiliarRecords() {
+  const unfamiliar = loadFromLocalStorage(STORAGE_KEYS.unfamiliar, {});
+  return Object.values(unfamiliar).flatMap(bank => Object.values(bank));
 }
 
 function saveToLocalStorage(key, value) {
@@ -1351,6 +1508,7 @@ function exportAllLocalData() {
     progress: loadFromLocalStorage(STORAGE_KEYS.progress, null),
     wrongBook: loadFromLocalStorage(STORAGE_KEYS.wrongBook, {}),
     favorites: loadFromLocalStorage(STORAGE_KEYS.favorites, {}),
+    unfamiliar: loadFromLocalStorage(STORAGE_KEYS.unfamiliar, {}),
     importedBanks: loadFromLocalStorage(STORAGE_KEYS.importedBanks, {}),
     answerRecords: loadFromLocalStorage(STORAGE_KEYS.answerRecords, []),
     examRecords: loadFromLocalStorage(STORAGE_KEYS.examRecords, []),
@@ -1370,6 +1528,9 @@ function importAllLocalData(file) {
         if (Object.prototype.hasOwnProperty.call(data, name)) saveToLocalStorage(key, data[name]);
       });
       state.importedBanks = loadFromLocalStorage(STORAGE_KEYS.importedBanks, {});
+      state.uiPrefs = loadUiPrefs();
+      applyUiPrefs();
+      syncUiPrefControls();
       renderQuestionBankList();
       populateExamBankSelect();
       populateValidatorBankSelect();
@@ -1409,6 +1570,7 @@ function renderFavoritesPage() {
 function renderLocalDataSummary() {
   const wrongCount = collectWrongBookRecords().length;
   const favoriteCount = collectFavoriteRecords().length;
+  const unfamiliarCount = collectUnfamiliarRecords().length;
   const importedCount = Object.keys(loadFromLocalStorage(STORAGE_KEYS.importedBanks, {})).length;
   const answerCount = loadFromLocalStorage(STORAGE_KEYS.answerRecords, []).length;
   const examCount = loadFromLocalStorage(STORAGE_KEYS.examRecords, []).length;
@@ -1417,6 +1579,7 @@ function renderLocalDataSummary() {
   box.innerHTML = `
     ${statItem('錯題本題數', wrongCount)}
     ${statItem('收藏題數', favoriteCount)}
+    ${statItem('不熟題數', unfamiliarCount)}
     ${statItem('匯入題庫數', importedCount)}
     ${statItem('答題紀錄數', answerCount)}
     ${statItem('模擬考紀錄數', examCount)}
@@ -1485,18 +1648,33 @@ function buildQuestionRecordCard(record, options = {}) {
 
 function renderExamActive() {
   const area = $('examActiveArea');
+  const setup = $('examSetupPanel');
+  if (setup) setup.classList.add('hidden');
   $('examResultArea').innerHTML = '';
+  $('examNavFloatingButton')?.classList.remove('hidden');
   area.className = '';
   area.innerHTML = `
     <div class="exam-timer" id="examTimerText"></div>
-    <div class="panel"><h3>${escapeHtml(state.exam.bankTitle)}</h3><p>請完成所有題目後交卷。未作答題目會以錯誤計算。</p></div>
+    <div class="panel exam-active-header">
+      <h3>${escapeHtml(state.exam.bankTitle)}</h3>
+      <p>請完成所有題目後交卷。未作答題目會以錯誤計算。</p>
+      <div class="toolbar">
+        <button type="button" id="openExamNavButton" class="secondary">題號導覽</button>
+      </div>
+    </div>
+    <div class="panel exam-nav-panel">
+      <div class="drawer-header"><strong>題號導覽</strong><span class="muted">已作答題目會標示為已答</span></div>
+      <div id="examQuestionNav" class="exam-question-nav"></div>
+    </div>
     <form id="examForm"></form>
-    <div class="panel"><button type="button" id="submitExamButton">交卷並批改</button></div>
+    <div class="panel exam-submit-panel"><button type="button" id="submitExamButton">交卷並批改</button></div>
   `;
   const form = $('examForm');
   state.exam.questions.forEach((q, index) => {
     const div = document.createElement('section');
     div.className = 'exam-question';
+    div.id = `exam-question-${index}`;
+    div.dataset.examIndex = String(index);
     const imgId = `exam-img-${q.id}-${index}`;
     div.innerHTML = `
       <div class="meta-row"><span class="badge">${index + 1}</span><span class="badge">${escapeHtml(q.id)}</span><span class="badge">${TYPE_LABELS[q.type]}</span></div>
@@ -1507,8 +1685,13 @@ function renderExamActive() {
     form.appendChild(div);
     renderImages(q.images || [], div.querySelector(`#${CSS.escape(imgId)}`));
   });
-  $('submitExamButton').addEventListener('click', submitExam);
+  $('submitExamButton').addEventListener('click', () => submitExam(false));
+  $('openExamNavButton')?.addEventListener('click', openExamQuestionDrawer);
+  form.addEventListener('change', updateExamQuestionNavigation);
+  form.addEventListener('input', updateExamQuestionNavigation);
+  renderExamQuestionNavigation();
   updateExamTimer();
+  requestAnimationFrame(() => scrollToElement('examActiveArea'));
 }
 
 function buildExamAnswerInputs(question, index) {
@@ -1555,11 +1738,78 @@ function updateExamTimer() {
   const sec = Math.floor((remain % 60000) / 1000);
   const text = $('examTimerText');
   if (text) text.textContent = `剩餘時間：${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-  if (remain <= 0) submitExam();
+  if (remain <= 0) submitExam(true);
 }
 
-function submitExam() {
+
+function countUnansweredExamQuestions() {
+  if (!state.exam) return 0;
+  return state.exam.questions.reduce((count, question, index) => {
+    const answer = getExamAnswer(question, index);
+    return count + (isEmptyAnswer(answer, question.type) ? 1 : 0);
+  }, 0);
+}
+
+function renderExamQuestionNavigation() {
+  if (!state.exam) return;
+  const html = state.exam.questions.map((q, index) => `
+    <button type="button" class="exam-question-nav-button" data-exam-jump="${index}">
+      <span>${index + 1}</span>
+      <small>${escapeHtml(q.id)}</small>
+    </button>
+  `).join('');
+  const nav = $('examQuestionNav');
+  const drawer = $('examQuestionDrawerContent');
+  if (nav) nav.innerHTML = html;
+  if (drawer) drawer.innerHTML = html;
+  document.querySelectorAll('[data-exam-jump]').forEach(button => {
+    button.addEventListener('click', () => {
+      closeExamQuestionDrawer();
+      jumpToExamQuestion(Number(button.dataset.examJump));
+    });
+  });
+  updateExamQuestionNavigation();
+}
+
+function updateExamQuestionNavigation() {
+  if (!state.exam) return;
+  document.querySelectorAll('[data-exam-jump]').forEach(button => {
+    const index = Number(button.dataset.examJump);
+    const q = state.exam.questions[index];
+    const answered = q && !isEmptyAnswer(getExamAnswer(q, index), q.type);
+    button.classList.toggle('answered', Boolean(answered));
+    button.classList.toggle('unanswered', !answered);
+    button.title = answered ? '已作答' : '未作答';
+  });
+}
+
+function jumpToExamQuestion(index) {
+  const el = document.getElementById(`exam-question-${index}`);
+  if (!el) return;
+  scrollToElement(el);
+}
+
+function openExamQuestionDrawer() {
+  const drawer = $('examQuestionDrawer');
+  if (!drawer) return;
+  drawer.classList.remove('hidden');
+  drawer.setAttribute('aria-hidden', 'false');
+}
+
+function closeExamQuestionDrawer() {
+  const drawer = $('examQuestionDrawer');
+  if (!drawer) return;
+  drawer.classList.add('hidden');
+  drawer.setAttribute('aria-hidden', 'true');
+}
+
+function submitExam(force = false) {
   if (!state.exam || state.exam.submitted) return;
+  const unanswered = countUnansweredExamQuestions();
+  if (!force && unanswered > 0) {
+    const ok = confirm(`尚有 ${unanswered} 題未作答，是否仍要交卷？`);
+    if (!ok) return;
+  }
   state.exam.submitted = true;
   if (state.examTimerId) clearInterval(state.examTimerId);
   const records = state.exam.questions.map((q, index) => {
@@ -1603,7 +1853,10 @@ function submitExam() {
 }
 
 function renderExamResult(result, filter = 'all', shouldScrollTop = true) {
+  state.lastExamResult = result;
   $('examActiveArea').className = 'hidden';
+  $('examNavFloatingButton')?.classList.add('hidden');
+  closeExamQuestionDrawer();
   const area = $('examResultArea');
   const visibleRecords = filter === 'wrong' ? result.records.filter(record => !record.isCorrect) : result.records;
   area.innerHTML = `
@@ -1618,6 +1871,8 @@ function renderExamResult(result, filter = 'all', shouldScrollTop = true) {
       <div class="toolbar exam-result-filter" aria-label="模擬考結果顯示篩選">
         <button type="button" id="examResultShowAllButton" class="${filter === 'all' ? '' : 'secondary'}">查看全部題目</button>
         <button type="button" id="examResultShowWrongButton" class="${filter === 'wrong' ? '' : 'secondary'}">只看錯題</button>
+        <button type="button" id="examRetakeWrongButton" class="secondary" ${result.wrong === 0 ? 'disabled' : ''}>重練本次錯題</button>
+        <button type="button" id="examRestartButton" class="secondary">重新模擬考</button>
       </div>
       <p class="muted">目前顯示：${filter === 'wrong' ? `錯題 ${visibleRecords.length} 題` : `全部 ${visibleRecords.length} 題`}</p>
     </div>
@@ -1625,6 +1880,8 @@ function renderExamResult(result, filter = 'all', shouldScrollTop = true) {
 
   $('examResultShowAllButton').addEventListener('click', () => renderExamResult(result, 'all', false));
   $('examResultShowWrongButton').addEventListener('click', () => renderExamResult(result, 'wrong', false));
+  $('examRetakeWrongButton').addEventListener('click', () => startExamWrongPractice(result));
+  $('examRestartButton').addEventListener('click', () => { $('examSetupPanel')?.classList.remove('hidden'); $('examResultArea').innerHTML = ''; showPage('examPage'); });
 
   if (visibleRecords.length === 0) {
     const empty = document.createElement('div');
@@ -1748,6 +2005,32 @@ function buildExamResultOptionReview(question, userAnswer) {
   return '';
 }
 
+
+async function startExamWrongPractice(result) {
+  const wrongRecords = (result.records || []).filter(record => !record.isCorrect);
+  if (wrongRecords.length === 0) {
+    showMessage('本次模擬考沒有錯題。', 'success');
+    return;
+  }
+  const bank = await loadQuestionBankForExam(result.bankId);
+  if (!bank) return;
+  state.currentBankData = bank;
+  state.currentBankMeta = findBankMeta(result.bankId);
+  state.filteredQuestions = bank.questions;
+  const ids = new Set(wrongRecords.map(record => record.questionId));
+  const questions = bank.questions.filter(q => ids.has(q.id));
+  if (questions.length === 0) {
+    const snapshots = wrongRecords.map(record => record.snapshot).filter(Boolean);
+    state.currentBankData = {
+      ...bank,
+      questions: snapshots
+    };
+    startPractice(snapshots, 'examWrong');
+    return;
+  }
+  startPractice(questions, 'examWrong');
+}
+
 function updateWrongBookForBank(bankId, bankTitle, question, userAnswer) {
   const wrongBook = loadFromLocalStorage(STORAGE_KEYS.wrongBook, {});
   if (!wrongBook[bankId]) wrongBook[bankId] = {};
@@ -1767,9 +2050,16 @@ function updateWrongBookForBank(bankId, bankTitle, question, userAnswer) {
 function updateFavoriteButton() {
   const q = state.practice?.currentQuestion;
   const bankId = state.currentBankData?.bankId;
-  if (!q || !bankId) return;
+  const btn = $('favoriteButton');
+  if (!btn) return;
+  if (!q || !bankId) {
+    btn.textContent = '加入收藏';
+    syncMobilePracticeBar();
+    return;
+  }
   const favorites = loadFromLocalStorage(STORAGE_KEYS.favorites, {});
-  $('favoriteButton').textContent = favorites[bankId]?.[q.id] ? '取消收藏' : '加入收藏';
+  btn.textContent = favorites[bankId]?.[q.id] ? '取消收藏' : '加入收藏';
+  syncMobilePracticeBar();
 }
 
 function appendAnswerRecord(record) {
@@ -2289,7 +2579,7 @@ function showPage(pageId) {
   document.querySelectorAll('.page').forEach(page => page.classList.remove('active-page'));
   $(pageId).classList.add('active-page');
   renderLocalDataSummary();
-  if (pageId === 'examPage') populateExamBankSelect();
+  if (pageId === 'examPage') { populateExamBankSelect(); $('examSetupPanel')?.classList.remove('hidden'); $('examNavFloatingButton')?.classList.add('hidden'); closeExamQuestionDrawer(); }
   if (pageId === 'validatorPage') populateValidatorBankSelect();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -2324,6 +2614,9 @@ function clearAllLocalData() {
   Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
   state.importedBanks = {};
   state.practice = null;
+  state.uiPrefs = loadUiPrefs();
+  applyUiPrefs();
+  syncUiPrefControls();
   renderQuestionBankList();
   populateExamBankSelect();
   populateValidatorBankSelect();
@@ -2386,11 +2679,17 @@ function bindGlobalEvents() {
   $('startPracticeButton').addEventListener('click', () => startPractice());
   $('startWrongPracticeButton').addEventListener('click', () => startWrongBookPractice());
   $('startFavoritePracticeButton').addEventListener('click', () => startFavoritePractice());
+  $('startUnfamiliarPracticeButton').addEventListener('click', () => startUnfamiliarPractice());
   $('resumePracticeButton').addEventListener('click', loadProgress);
   $('clearCurrentProgressButton').addEventListener('click', () => { clearProgress(); showMessage('目前題庫進度已清除。', 'success'); });
   $('submitAnswerButton').addEventListener('click', handlePracticeActionButton);
+  $('mobilePracticeActionButton').addEventListener('click', handlePracticeActionButton);
+  $('mobileTopButton').addEventListener('click', () => scrollToElement('practicePage'));
   $('nextQuestionButton').addEventListener('click', nextQuestion);
   $('favoriteButton').addEventListener('click', toggleFavoriteQuestion);
+  $('mobileFavoriteButton').addEventListener('click', toggleFavoriteQuestion);
+  $('unfamiliarButton').addEventListener('click', toggleUnfamiliarQuestion);
+  $('mobileUnfamiliarButton').addEventListener('click', toggleUnfamiliarQuestion);
   $('backToBankButton').addEventListener('click', () => showPage('bankDetailPage'));
   $('restartPracticeButton').addEventListener('click', () => startPractice(state.filteredQuestions.length ? state.filteredQuestions : state.currentBankData.questions));
   $('finishWrongPracticeButton').addEventListener('click', () => startWrongBookPractice(state.currentBankData?.bankId));
@@ -2402,6 +2701,9 @@ function bindGlobalEvents() {
   $('exportFavoritesJsonButton').addEventListener('click', exportFavoritesToJSON);
   $('clearFavoritesButton').addEventListener('click', () => { if (confirm('確定清除收藏題目？')) { saveToLocalStorage(STORAGE_KEYS.favorites, {}); renderFavoritesPage(); } });
   $('startExamButton').addEventListener('click', startExamMode);
+  $('examNavFloatingButton').addEventListener('click', openExamQuestionDrawer);
+  $('closeExamDrawerButton').addEventListener('click', closeExamQuestionDrawer);
+  document.querySelectorAll('[data-close-exam-drawer]').forEach(el => el.addEventListener('click', closeExamQuestionDrawer));
   $('validatorFileInput').addEventListener('change', event => inspectUploadedQuestionBank(event.target.files[0]));
   $('validatorLoadSelectedButton').addEventListener('click', inspectSelectedQuestionBank);
   $('downloadValidatorReportButton').addEventListener('click', downloadValidatorReport);
@@ -2410,7 +2712,57 @@ function bindGlobalEvents() {
   $('exportAllDataButton').addEventListener('click', exportAllLocalData);
   $('importAllDataInput').addEventListener('change', event => importAllLocalData(event.target.files[0]));
   $('clearAllLocalDataButton').addEventListener('click', clearAllLocalData);
+  const prefBindings = {
+    prefFontSize: 'fontSize',
+    prefOptionSpacing: 'optionSpacing',
+    prefDarkMode: 'darkMode',
+    prefMobileBar: 'mobileBar'
+  };
+  Object.entries(prefBindings).forEach(([id, name]) => {
+    const el = $(id);
+    if (el) el.addEventListener('change', event => updateUiPref(name, event.target.value));
+  });
+  document.addEventListener('keydown', handleKeyboardShortcuts);
 }
+
+function handleKeyboardShortcuts(event) {
+  if (event.isComposing) return;
+  const target = event.target;
+  const tag = target?.tagName?.toLowerCase();
+  if (['input', 'textarea', 'select'].includes(tag)) return;
+
+  const practicePage = $('practicePage');
+  if (!practicePage || !practicePage.classList.contains('active-page') || !state.practice?.currentQuestion) return;
+
+  const key = event.key.toLowerCase();
+  const q = state.practice.currentQuestion;
+  if (key === 'enter') {
+    event.preventDefault();
+    handlePracticeActionButton();
+    return;
+  }
+  if (key === 'f') {
+    event.preventDefault();
+    toggleFavoriteQuestion();
+    return;
+  }
+  if (key === 'u') {
+    event.preventDefault();
+    toggleUnfamiliarQuestion();
+    return;
+  }
+  if (state.practice.answered) return;
+  if (/^[a-z]$/.test(key) && ['single_choice', 'multiple_choice'].includes(q.type)) {
+    const optionKey = key.toUpperCase();
+    const input = document.querySelector(`#answerForm input[value="${cssEscape(optionKey)}"]`);
+    if (!input) return;
+    event.preventDefault();
+    if (q.type === 'single_choice') input.checked = true;
+    else input.checked = !input.checked;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+}
+
 
 function copyAiPrompt() {
   navigator.clipboard.writeText(AI_PROMPT).then(() => {
